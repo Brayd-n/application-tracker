@@ -25,11 +25,11 @@ ssh "$SERVER" "set -e
   sudo install -d -m 700 /etc/application-tracker
   if ! sudo test -f /etc/application-tracker/db.env; then
     pw=\$(openssl rand -hex 24)
-    printf 'POSTGRES_PASSWORD=%s\n' \"\$pw\" | sudo install -m 600 /dev/stdin /etc/application-tracker/db.env
-    printf 'PGPASSWORD=%s\n' \"\$pw\" | sudo install -m 600 /dev/stdin /etc/application-tracker/app.env
+    printf 'POSTGRES_PASSWORD=%s\n' \"\$pw\" | sudo sh -c 'umask 077; cat > /etc/application-tracker/db.env'
+    printf 'PGPASSWORD=%s\n' \"\$pw\" | sudo sh -c 'umask 077; cat > /etc/application-tracker/app.env'
   fi
   chmod 755 $DIR/backup.sh
-  echo '30 3 * * * root $DIR/backup.sh' | sudo install -m 644 /dev/stdin /etc/cron.d/application-tracker
+  echo '30 3 * * * root $DIR/backup.sh' | sudo tee /etc/cron.d/application-tracker >/dev/null
   cd $DIR && sudo docker compose up -d --remove-orphans && docker image prune -f >/dev/null"
 
 echo "Done."

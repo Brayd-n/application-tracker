@@ -69,7 +69,11 @@ export function csvCell(v: unknown): string {
 
 export function buildApp(pool: pg.Pool, cfg: Config) {
   // Caddy reaches the container through Docker's private bridge network; trust X-Forwarded-For only from there.
-  const app = Fastify({ logger: process.env.NODE_ENV !== 'test', trustProxy: 'loopback,uniquelocal', bodyLimit: 1_048_576 });
+  const app = Fastify({
+    // Request logs never include OAuth codes/state or other query values.
+    logger: process.env.NODE_ENV !== 'test' && {
+      serializers: { req: (req: { method: string; url: string }) => ({ method: req.method, url: req.url.split('?')[0] }) },
+    }, trustProxy: 'loopback,uniquelocal', bodyLimit: 1_048_576 });
   const quota = cfg.userQuotaBytes ?? 200 * 1024 * 1024;
   const fileOf = (userId: string, id: string) => path.join(cfg.uploadDir, userId, id);
 

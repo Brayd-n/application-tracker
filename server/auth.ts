@@ -61,7 +61,10 @@ export function authRoutes(app: FastifyInstance, pool: pg.Pool, cfg: AuthConfig)
     } catch {}
     reply.clearCookie(OAUTH_COOKIE, cookieOpts);
     const { code, state } = req.query;
-    if (!code || !state || !saved.state || state !== saved.state) return reply.redirect('/?login=failed');
+    if (!code || !state || !saved.state || state !== saved.state) {
+      req.log.warn('sign-in: missing code or state mismatch');
+      return reply.redirect('/?login=failed');
+    }
 
     const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -75,7 +78,10 @@ export function authRoutes(app: FastifyInstance, pool: pg.Pool, cfg: AuthConfig)
       }),
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) return reply.redirect('/?login=failed');
+    if (!res.ok) {
+      req.log.warn({ status: res.status, error: ((await res.json().catch(() => ({}))) as { error?: string }).error }, 'sign-in: token exchange failed');
+      return reply.redirect('/?login=failed');
+    }
     const { id_token } = (await res.json()) as { id_token?: string };
     const claims = JSON.parse(Buffer.from(String(id_token).split('.')[1] ?? '', 'base64url').toString() || '{}');
     const valid =
@@ -85,7 +91,10 @@ export function authRoutes(app: FastifyInstance, pool: pg.Pool, cfg: AuthConfig)
       claims.nonce === saved.nonce &&
       claims.email_verified === true &&
       typeof claims.sub === 'string';
-    if (!valid) return reply.redirect('/?login=failed');
+    if (!valid) {
+      req.log.warn('sign-in: ID token claims rejected');
+      return reply.redirect('/?login=failed');
+    }
 
     const { rows } = await pool.query(
       `INSERT INTO users (google_sub, email, name) VALUES ($1, $2, $3)

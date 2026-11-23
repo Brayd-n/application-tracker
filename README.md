@@ -137,7 +137,7 @@ CI (GitHub Actions) runs the typecheck, all tests against a PostgreSQL service c
 Google credentials are added once on the server, without ever passing through chat or the repo:
 
 ```bash
-ssh -t braydon@179.66.159.71 'read -rp "Client ID: " id; read -rsp "Client secret: " s; echo; printf "GOOGLE_CLIENT_ID=%s\nGOOGLE_CLIENT_SECRET=%s\n" "$id" "$s" | sudo install -m 600 /dev/stdin /etc/application-tracker/google.env && cd /opt/application-tracker && sudo docker compose up -d'
+ssh -t braydon@179.66.159.71 'read -rp "Client ID: " id; read -rsp "Client secret: " s; echo; printf "GOOGLE_CLIENT_ID=%s\nGOOGLE_CLIENT_SECRET=%s\n" "$id" "$s" | sudo sh -c "umask 077; cat > /etc/application-tracker/google.env" && cd /opt/application-tracker && sudo docker compose up -d'
 ```
 
 Restore from a backup:
