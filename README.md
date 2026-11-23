@@ -8,7 +8,7 @@ I tracked my own job search in a Google Sheet (company, position, work type, pay
 - **The job description is saved with the application**, so it's still there after the posting is taken down.
 - **An interview timeline per application.** Log any number of interviews and follow-ups (type, date, who, how it went, notes), each with screenshots or PDFs attached.
 - **Table and board views.** Sort and filter like a spreadsheet, or drag cards between status columns. Statuses are color-coded.
-- **Email reply alerts (optional).** Connect Gmail and the app watches for messages from companies you applied to, marks the application "New reply", and shows a notification (in-app, and as a desktop alert if you allow it). It reads only message headers, never message content.
+- **Email reply alerts (optional, off by default: set `GMAIL_ENABLED=1` once Google has approved the Gmail scope).** Connect Gmail and the app watches for messages from companies you applied to, marks the application "New reply", and shows a notification (in-app, and as a desktop alert if you allow it). It reads only message headers, never message content.
 - **Stats and reminders.** Applied, interviewing, offers, response rate, and a list of upcoming follow-ups and interviews (overdue ones in red).
 - **Your data stays yours.** Every query is scoped to the signed-in user. You can export everything to CSV, or delete your account, which removes all of your rows and files right away.
 

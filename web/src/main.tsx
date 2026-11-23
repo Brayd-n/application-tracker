@@ -217,7 +217,7 @@ function Account({ user }: { user: User }) {
     <main className="narrow">
       <h1>Settings</h1>
 
-      <section className="panel">
+      {gmail?.available && <section className="panel">
         <h2>Email replies</h2>
         <p className="muted">
           Get notified when a company you applied to emails you. Only the sender, subject, and date of messages are read (never the message
@@ -240,11 +240,11 @@ function Account({ user }: { user: User }) {
           </>
         ) : (
           <div className="actions">
-            <a className="button primary" href="/auth/gmail" aria-disabled={gmail?.available === false}>Connect Gmail</a>
+            <a className="button primary" href="/auth/gmail">Connect Gmail</a>
             {gmailMsg && <span className="muted small">{gmailMsg}</span>}
           </div>
         )}
-      </section>
+      </section>}
 
       <section className="panel">
         <h2>Your data</h2>
@@ -272,9 +272,13 @@ function Account({ user }: { user: User }) {
 
 function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [gmailAvailable, setGmailAvailable] = useState(false);
   const route = useRoute();
   useEffect(() => {
-    api<User>('GET', '/api/me').then(setUser, () => setUser(null));
+    api<User>('GET', '/api/me').then((u) => {
+      setUser(u);
+      api<GmailStatus>('GET', '/api/gmail').then((g) => setGmailAvailable(g.available), () => {});
+    }, () => setUser(null));
   }, []);
 
   if (user === undefined) return null;
@@ -294,7 +298,7 @@ function App() {
         <span className="spacer" />
         <div className="right">
           <a className="button primary" href="#/new">New application</a>
-          <Notifications />
+          {gmailAvailable && <Notifications />}
           <AccountMenu user={user} />
         </div>
       </header>

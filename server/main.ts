@@ -10,8 +10,9 @@ const env = (name: string, fallback?: string) => {
 
 const pool = createPool();
 await migrate(pool);
-// 32-byte hex key for encrypting Gmail refresh tokens. Without it, "Connect Gmail" is turned off.
-const tokenKey = process.env.TOKEN_KEY ? Buffer.from(process.env.TOKEN_KEY, 'hex') : undefined;
+// 32-byte hex key for encrypting Gmail refresh tokens. "Connect Gmail" is off unless GMAIL_ENABLED=1
+// (it needs the Gmail API enabled and the gmail.metadata scope approved in Google Cloud).
+const tokenKey = process.env.GMAIL_ENABLED === '1' && process.env.TOKEN_KEY ? Buffer.from(process.env.TOKEN_KEY, 'hex') : undefined;
 if (tokenKey && tokenKey.length !== 32) throw new Error('TOKEN_KEY must be 64 hex characters');
 const cfg = {
   origin: env('APP_ORIGIN', 'http://localhost:3000'),
