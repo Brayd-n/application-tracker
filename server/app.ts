@@ -9,9 +9,10 @@ import path from 'node:path';
 import type pg from 'pg';
 import { authRoutes, requireUser, type AuthConfig } from './auth.ts';
 import { AutofillError, autofill } from './autofill.ts';
+import { disconnectGmail, gmailApiRoutes, gmailAuthRoutes } from './gmail.ts';
 import { MAX_UPLOAD_BYTES, UploadError, safeFilename, sanitize } from './uploads.ts';
 
-export type Config = AuthConfig & { uploadDir: string; webDir?: string; userQuotaBytes?: number };
+export type Config = AuthConfig & { uploadDir: string; webDir?: string; userQuotaBytes?: number; tokenKey?: Buffer };
 
 const WORK_TYPES = ['on_site', 'hybrid', 'remote'];
 const WORKLOADS = ['full_time', 'part_time', 'contract', 'internship'];
@@ -98,6 +99,7 @@ export function buildApp(pool: pg.Pool, cfg: Config) {
   });
 
   authRoutes(app, pool, cfg);
+  gmailAuthRoutes(app, pool, cfg);
   app.get('/healthz', async () => ({ ok: true }));
 
   // Everything under /api needs a signed-in user, and every query below is scoped to req.user.id.
@@ -105,6 +107,7 @@ export function buildApp(pool: pg.Pool, cfg: Config) {
     api.addHook('preHandler', (req, reply) => requireUser(pool, req, reply));
 
     api.get('/me', async (req) => req.user);
+    gmailApiRoutes(api, pool, cfg);
 
     api.get('/applications', async (req) => {
       const { rows } = await pool.query(
@@ -115,7 +118,9 @@ export function buildApp(pool: pg.Pool, cfg: Config) {
                   ORDER BY e.happened_on DESC NULLS LAST, e.created_at DESC LIMIT 1) AS last_outcome,
                 (SELECT json_build_object('date', e.happened_on, 'kind', e.kind) FROM events e
                   WHERE e.application_id = a.id AND e.happened_on >= current_date - 1
-                  ORDER BY e.happened_on LIMIT 1) AS next_event
+                  ORDER BY e.happened_on LIMIT 1) AS next_event,
+                (SELECT count(*)::int FROM email_matches m WHERE m.application_id = a.id) AS mail_count,
+                (SELECT count(*)::int FROM email_matches m WHERE m.application_id = a.id AND NOT m.read) AS unread_mail
          FROM applications a WHERE a.user_id = $1 ORDER BY a.created_at DESC`,
         [req.user.id],
       );
@@ -144,8 +149,12 @@ export function buildApp(pool: pg.Pool, cfg: Config) {
          ORDER BY e.happened_on NULLS LAST, e.created_at`,
         [id, req.user.id],
       );
+      const emails = await pool.query(
+        'SELECT id, gmail_id, from_name, from_email, subject, received_at, read FROM email_matches WHERE application_id = $1 AND user_id = $2 ORDER BY received_at DESC',
+        [id, req.user.id],
+      );
       const { user_id, ...application } = rows[0];
-      return { ...application, events: events.rows };
+      return { ...application, events: events.rows, emails: emails.rows };
     });
 
     api.put('/applications/:id', { schema: { params: idParam, body: applicationBody } }, async (req, reply) => {
@@ -276,6 +285,7 @@ export function buildApp(pool: pg.Pool, cfg: Config) {
     });
 
     api.delete('/account', async (req, reply) => {
+      await disconnectGmail(pool, cfg, req.user.id); // also revokes Google's access token
       await pool.query('DELETE FROM users WHERE id = $1', [req.user.id]); // cascades to sessions, applications, events, attachments
       await rm(path.join(cfg.uploadDir, req.user.id), { recursive: true, force: true });
       reply.clearCookie('__Host-session', { path: '/', httpOnly: true, secure: true, sameSite: 'lax' });

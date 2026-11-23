@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { api, KIND, OUTCOME, STATUS, WORK_TYPE, WORKLOAD, today, type Application, type Event } from './api.ts';
+import { useContext, useEffect, useState, type FormEvent } from 'react';
+import { api, gmailLink, KIND, OUTCOME, shortDate, STATUS, UserContext, WORK_TYPE, WORKLOAD, today, type Application, type Email, type Event } from './api.ts';
 
 const FIELDS = ['company', 'position', 'work_type', 'location', 'link', 'description', 'pay', 'workload', 'status', 'notes', 'applied_on', 'follow_up_on'] as const;
 type Form = Pick<Application, (typeof FIELDS)[number]>;
@@ -24,6 +24,8 @@ function Select<T extends string>({ label, value, options, onChange, empty }: { 
 export function Detail({ id }: { id?: string }) {
   const [form, setForm] = useState<Form>(blank);
   const [events, setEvents] = useState<Event[]>([]);
+  const [emails, setEmails] = useState<Email[]>([]);
+  const user = useContext(UserContext);
   const [loaded, setLoaded] = useState(!id);
   const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,6 +35,7 @@ export function Detail({ id }: { id?: string }) {
       (a) => {
         setForm(Object.fromEntries(FIELDS.map((f) => [f, a[f] ?? (f === 'description' ? '' : a[f])])) as Form);
         setEvents(a.events ?? []);
+        setEmails(a.emails ?? []);
         setLoaded(true);
       },
       (e) => setMsg({ text: e.message, error: true }),
@@ -92,18 +95,17 @@ export function Detail({ id }: { id?: string }) {
 
   return (
     <main className="detail">
-      <p><a href="#/">← All applications</a></p>
-      <h1>{id ? `${form.company} — ${form.position}` : 'New application'}</h1>
-      <form onSubmit={save} className="app-form">
+      <a className="back" href="#/">← Applications</a>
+      <h1>{id ? `${form.company} · ${form.position}` : 'New application'}</h1>
+      <form onSubmit={save} className="app-form panel">
         <div className="link-row">
           <label className="grow">
             Job link
             <input type="url" value={form.link} onChange={(e) => set('link', e.target.value)} placeholder="https://…" />
           </label>
-          <button type="button" onClick={autofill} disabled={busy || !/^https?:\/\//.test(form.link)}>Fill in from link</button>
+          <button type="button" onClick={autofill} disabled={busy || !/^https?:\/\//.test(form.link)} title="Works with most company career pages, Greenhouse, Lever, and Workday. LinkedIn and Indeed don't allow it.">Fill in from link</button>
           {id && form.link && <a className="button" href={form.link} target="_blank" rel="noopener noreferrer">Open</a>}
         </div>
-        <p className="muted small">Works with pages that publish job details (most company career sites, Greenhouse, Lever, Workday). LinkedIn and Indeed don't allow it, so paste the description below instead.</p>
         {msg && <p className={msg.error ? 'error' : 'notice'} role="status">{msg.text}</p>}
 
         <div className="grid">
@@ -119,14 +121,29 @@ export function Detail({ id }: { id?: string }) {
         </div>
         <label>Notes<textarea rows={3} maxLength={20000} value={form.notes} onChange={(e) => set('notes', e.target.value)} /></label>
         <label>
-          Job description <span className="muted small">(kept with the application, even if the posting is taken down)</span>
+          Job description
           <textarea rows={12} maxLength={100000} value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} />
         </label>
         <div className="actions">
           <button className="primary" disabled={busy}>{id ? 'Save changes' : 'Add application'}</button>
-          {id && <button type="button" className="danger" onClick={remove}>Delete application</button>}
+          {id && <button type="button" className="danger end" onClick={remove}>Delete</button>}
         </div>
       </form>
+
+      {id && emails.length > 0 && (
+        <section className="panel">
+          <h2>Emails</h2>
+          <ul className="mail-list">
+            {emails.map((m) => (
+              <li key={m.id}>
+                <span className="muted small nowrap">{shortDate(m.received_at)}</span>
+                <a className="subject" href={gmailLink(m.gmail_id, user.email)} target="_blank" rel="noopener noreferrer">{m.subject || '(no subject)'}</a>
+                <span className="muted small">{m.from_name || m.from_email}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {id && (
         <section className="timeline">
@@ -135,7 +152,7 @@ export function Detail({ id }: { id?: string }) {
           <ol>
             {events.map((ev) => <EventItem key={ev.id} ev={ev} reload={load} />)}
           </ol>
-          <button onClick={addEvent}>+ Add interview or follow-up</button>
+          <button onClick={addEvent}>Add interview or follow-up</button>
         </section>
       )}
     </main>

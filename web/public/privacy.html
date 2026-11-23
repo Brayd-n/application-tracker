@@ -16,10 +16,21 @@
 <h2>What is collected</h2>
 <ul>
   <li><strong>From Google sign-in:</strong> your Google account ID, email address, and name. The app asks Google only for the basic <code>openid</code>, <code>email</code>, and <code>profile</code> scopes. It does not get your Google password and cannot access your Gmail, Drive, contacts, or anything else in your Google account.</li>
+  <li><strong>If you connect Gmail (optional):</strong> see the next section.</li>
   <li><strong>What you enter:</strong> applications, job descriptions, notes, interview entries, and files you upload.</li>
   <li><strong>Sign-in session:</strong> a cookie that keeps you signed in for up to 30 days. Only a hash of it is stored on the server. No advertising or analytics cookies are used.</li>
   <li><strong>Server logs:</strong> the web server records requests (IP address, time, page, browser type) for security and troubleshooting. Logs are deleted after 30 days.</li>
 </ul>
+
+<h2>Gmail (optional)</h2>
+<p>If you choose "Connect Gmail" in Settings, the app asks Google for the <code>gmail.metadata</code> permission. This lets it read the headers of messages in your inbox (sender, subject, and date) but <strong>not the message body or attachments</strong>, and it cannot send, delete, or change anything.</p>
+<ul>
+  <li>Every 10 minutes the server looks at the headers of new inbox messages and compares the sender and subject with the companies in your tracker.</li>
+  <li>Only messages that match one of your applications are saved, and only their sender name and address, subject, date, and Gmail message ID (so you can open the message in Gmail). Everything else is discarded immediately.</li>
+  <li>Google gives the app a refresh token so it can keep checking. It is stored encrypted (AES-256-GCM) with a key kept separately from the database.</li>
+  <li>"Disconnect Gmail" (or deleting your account) revokes the app's access with Google and deletes the token and all saved email matches. You can also remove access at any time in your Google account under Security → Third-party apps.</li>
+</ul>
+<p>Application Tracker's use and transfer of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. Gmail data is used only to show you which applications received a reply. It is not shared with anyone, not used for advertising, not used to train AI or machine-learning models, and not read by people, except when you ask for help with your own account, when needed for security, or when required by law.</p>
 
 <h2>How it is used</h2>
 <p>Your data is used only to show your tracker to you. It is not sold, shared, used for advertising, or used to train AI models. Other users cannot see your data.</p>
@@ -31,7 +42,7 @@
 <h2>Your choices</h2>
 <ul>
   <li><strong>Export:</strong> download all of your applications as a CSV file from the Account page at any time.</li>
-  <li><strong>Delete:</strong> "Delete my account" on the Account page permanently removes your account, all applications, interviews, and files right away. Copies in backups expire within 14 days.</li>
+  <li><strong>Delete:</strong> "Delete my account" on the Account page permanently removes your account, all applications, interviews, files, and email matches right away, and revokes Gmail access if connected. Copies in backups expire within 14 days.</li>
   <li>You can also remove the app's access in your Google account settings under Security → Third-party apps.</li>
 </ul>
 

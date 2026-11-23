@@ -28,5 +28,17 @@ for (const [company, position, wt, loc, pay, wl, status, applied, fu, events] of
       [a.id, u.id, kind, d(when), outcome, who, kind === 'technical' ? 'Take-home: build a small REST API with tests. Due in 5 days.' : '']);
   }
 }
+// A few matched emails so the notifications and email list have something to show.
+const mail = [
+  ['Orchard Data', 'Orchard Data Recruiting', 'no-reply@us.greenhouse-mail.io', 'Interview confirmation: Data Engineer (New Grad)', -1, false],
+  ['Northwind Analytics', 'Dana Reyes', 'dana.reyes@northwindanalytics.com', 'Next steps on your take-home assignment', -2, false],
+  ['Harbor & Pine', 'Harbor & Pine People Team', 'people@harborandpine.com', 'Your offer from Harbor & Pine', -3, true],
+] as const;
+for (const [company, name, email, subject, days, read] of mail) {
+  await pool.query(
+    `INSERT INTO email_matches (user_id, application_id, gmail_id, from_name, from_email, subject, received_at, read)
+     SELECT $1, id, md5(random()::text), $3, $4, $5, now() + ($6 || ' days')::interval, $7 FROM applications WHERE user_id = $1 AND company = $2`,
+    [u.id, company, name, email, subject, String(days), read]);
+}
 console.log(await createSession(pool, u.id));
 await pool.end();

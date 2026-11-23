@@ -28,6 +28,10 @@ ssh "$SERVER" "set -e
     printf 'POSTGRES_PASSWORD=%s\n' \"\$pw\" | sudo sh -c 'umask 077; cat > /etc/application-tracker/db.env'
     printf 'PGPASSWORD=%s\n' \"\$pw\" | sudo sh -c 'umask 077; cat > /etc/application-tracker/app.env'
   fi
+  # Key for encrypting Gmail refresh tokens (kept out of the database and its backups).
+  if ! sudo grep -q '^TOKEN_KEY=' /etc/application-tracker/app.env; then
+    printf 'TOKEN_KEY=%s\n' \"\$(openssl rand -hex 32)\" | sudo tee -a /etc/application-tracker/app.env >/dev/null
+  fi
   chmod 755 $DIR/backup.sh
   echo '30 3 * * * root $DIR/backup.sh' | sudo tee /etc/cron.d/application-tracker >/dev/null
   cd $DIR && sudo docker compose up -d --remove-orphans && docker image prune -f >/dev/null"

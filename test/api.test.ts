@@ -95,6 +95,19 @@ test("users can never see or change each other's data or files", async () => {
 
   // The database itself rejects an event that mixes Bob's user id with Alice's application.
   await assert.rejects(pool.query('INSERT INTO events (application_id, user_id) VALUES ($1, $2)', [appId, users.bob.id]), /foreign key/);
+
+  // Email matches: Bob can't see or mark Alice's, and can't attach one to her application.
+  await pool.query("INSERT INTO email_matches (user_id, application_id, gmail_id, subject, received_at) VALUES ($1, $2, 'm1', 'Interview invite', now())", [users.alice.id, appId]);
+  assert.deepEqual((await as('bob', 'GET', '/api/notifications')).json(), []);
+  await as('bob', 'POST', '/api/notifications/read');
+  const mine = (await as('alice', 'GET', '/api/notifications')).json();
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].read, false);
+  assert.equal((await as('alice', 'GET', `/api/applications/${appId}`)).json().emails[0].subject, 'Interview invite');
+  await assert.rejects(
+    pool.query("INSERT INTO email_matches (user_id, application_id, gmail_id, received_at) VALUES ($1, $2, 'm2', now())", [users.bob.id, appId]),
+    /foreign key/,
+  );
 });
 
 test('requests without a session or from another site are refused', async () => {
@@ -137,7 +150,7 @@ test('deleting an account removes all of its rows and files', async () => {
   assert.ok(existsSync(path.join(uploadDir, id)));
   assert.equal((await as('alice', 'DELETE', '/api/account')).statusCode, 200);
   assert.ok(!existsSync(path.join(uploadDir, id)));
-  for (const table of ['users', 'sessions', 'applications', 'events', 'attachments']) {
+  for (const table of ['users', 'sessions', 'applications', 'events', 'attachments', 'email_matches', 'gmail_accounts']) {
     const col = table === 'users' ? 'id' : 'user_id';
     assert.equal((await pool.query(`SELECT count(*)::int AS n FROM ${table} WHERE ${col} = $1`, [id])).rows[0].n, 0, table);
   }

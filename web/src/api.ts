@@ -1,3 +1,8 @@
+import { createContext } from 'react';
+
+export type User = { email: string; name: string };
+export const UserContext = createContext<User>({ email: '', name: '' });
+
 export type Status = 'saved' | 'applied' | 'interviewing' | 'offer' | 'hired' | 'rejected' | 'withdrawn';
 export type Outcome = 'passed' | 'denied' | 'abandoned' | 'in_progress' | 'technical_assignment' | 'hired';
 
@@ -19,8 +24,34 @@ export type Application = {
   event_count?: number;
   last_outcome?: Outcome | null;
   next_event?: { date: string; kind: string } | null;
+  mail_count?: number;
+  unread_mail?: number;
   events?: Event[];
+  emails?: Email[];
 };
+
+export type Email = {
+  id: string;
+  application_id?: string;
+  company?: string;
+  gmail_id: string;
+  from_name: string;
+  from_email: string;
+  subject: string;
+  received_at: string;
+  read: boolean;
+};
+
+export const gmailLink = (gmailId: string, account: string) =>
+  `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(account)}#all/${encodeURIComponent(gmailId)}`;
+
+// "Nov 14" this year, "Nov 14, 2025" otherwise. Accepts 'YYYY-MM-DD' or a full timestamp.
+export const niceDate = (d: string | null) => {
+  if (!d) return '';
+  const date = new Date(d.length === 10 ? d + 'T00:00' : d);
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(date.getFullYear() !== new Date().getFullYear() && { year: 'numeric' }) });
+};
+export const shortDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
 export type Attachment = { id: string; filename: string; mime: string; size: number };
 export type Event = {

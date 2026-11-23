@@ -8,8 +8,11 @@ I tracked my own job search in a Google Sheet (company, position, work type, pay
 - **The job description is saved with the application**, so it's still there after the posting is taken down.
 - **An interview timeline per application.** Log any number of interviews and follow-ups (type, date, who, how it went, notes), each with screenshots or PDFs attached.
 - **Table and board views.** Sort and filter like a spreadsheet, or drag cards between status columns. Statuses are color-coded.
+- **Email reply alerts (optional).** Connect Gmail and the app watches for messages from companies you applied to, marks the application "New reply", and shows a notification (in-app, and as a desktop alert if you allow it). It reads only message headers, never message content.
 - **Stats and reminders.** Applied, interviewing, offers, response rate, and a list of upcoming follow-ups and interviews (overdue ones in red).
 - **Your data stays yours.** Every query is scoped to the signed-in user. You can export everything to CSV, or delete your account, which removes all of your rows and files right away.
+
+![Landing page](docs/landing.png)
 
 | Table | Board |
 |---|---|
@@ -18,6 +21,10 @@ I tracked my own job search in a Google Sheet (company, position, work type, pay
 | Application details | Interview timeline with attachments |
 |---|---|
 | ![Application form](docs/detail.png) | ![Interview timeline](docs/timeline.png) |
+
+| Email reply notifications | Settings |
+|---|---|
+| ![Notifications](docs/notifications.png) | ![Settings](docs/settings.png) |
 
 Dark mode follows the system setting: [screenshot](docs/table-dark.png). Screenshots use made-up sample data.
 
@@ -59,6 +66,7 @@ server/
   auth.ts        Google sign-in (OIDC code flow + PKCE) and sessions
   autofill.ts    SSRF-safe page fetcher + JobPosting / OpenGraph / Greenhouse parsers
   uploads.ts     content sniffing, EXIF stripping, filename cleanup
+  gmail.ts       optional Gmail connection: OAuth, encrypted refresh tokens, inbox scan, email → company matching
   db.ts          connection pool + tiny migration runner
   migrations/    SQL schema
 web/src/         React app (Overview = table/board/stats, Detail = form + timeline)
@@ -92,6 +100,14 @@ This app stores strangers' data, so these are the decisions that matter:
 - Images are decoded and **re-encoded** with sharp. That removes EXIF/GPS metadata and anything appended to the file, and a pixel limit guards against decompression bombs.
 - Files are stored outside the web root at `/data/uploads/<user-id>/<uuid>` (mode `0600`), never under their original names. They are served only through `/api/attachments/:id` after an ownership check, with `Content-Security-Policy: default-src 'none'; sandbox`, `nosniff`, and `Cache-Control: private, no-store`. PDFs are always served as downloads.
 
+**Gmail access (optional, per user)**
+- Normal sign-in asks only for `openid email profile`. Gmail is a separate, opt-in step ("Connect Gmail" in Settings) using incremental authorization, so users who don't connect it never see a Gmail permission.
+- The narrowest Gmail scope that works is used: `gmail.metadata`, which gives message headers (From, Subject, date) but no bodies or attachments, and no ability to send or change mail.
+- The callback checks that Google actually granted the Gmail scope (users can untick it) and that the ID token's `sub` matches the signed-in user, so only your own mailbox can be connected.
+- The refresh token is encrypted with **AES-256-GCM** using `TOKEN_KEY`, which lives only in the server's root-only env file. Database dumps and backups don't contain the key.
+- Only matching messages are stored (sender, subject, date, Gmail message ID). Everything else is discarded right after comparison. Disconnecting, or deleting the account, revokes the token with Google and deletes all stored matches. If Google reports the token was revoked (`invalid_grant`), the connection is removed automatically.
+- Matching: the sender's domain must be the company's (`northwindanalytics.com`, `acmecorp.com`; free-mail domains never count), or the full company name must appear in the sender name or subject (for recruiting-system mail such as Greenhouse or Workday). `test/gmail.test.ts` covers both directions, including near-miss domains that must not match.
+
 **Headers, transport, and containers**
 - Caddy serves HTTPS only (HSTS) with `default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; object-src 'none'`, plus `nosniff`, `Referrer-Policy`, and `Permissions-Policy`.
 - Rate limits: 300 requests/min per IP overall, 20/min for sign-in, 30/min for uploads, and 15/min for auto-fill.
@@ -100,7 +116,7 @@ This app stores strangers' data, so these are the decisions that matter:
 - Containers: the app is non-root with a read-only filesystem, `cap_drop: ALL`, `no-new-privileges`, and memory limits. Postgres has no published port, and the app port is bound to `127.0.0.1`.
 - Secrets (database password, Google client secret) live only on the server in root-only files under `/etc/application-tracker/`. Nothing secret is in this repo.
 
-**Known limits:** backups are on the same server (no off-site copy yet). PDFs are stored as uploaded (their metadata isn't stripped). Rate limits are in memory, which is fine for one instance.
+**Known limits:** backups are on the same server (no off-site copy yet). The Gmail feature uses a Google "restricted" scope, so until the app completes Google's verification and security assessment, users see an "unverified app" screen when connecting Gmail, and Google caps it at 100 users. PDFs are stored as uploaded (their metadata isn't stripped). Rate limits are in memory, which is fine for one instance.
 
 ## Running locally
 
@@ -124,8 +140,9 @@ npm test          # needs the PG* variables above; the API tests wipe that datab
 npm run typecheck
 ```
 
-- `test/api.test.ts`: cross-user isolation for every endpoint, the database-level ownership constraint, 401/403 for missing sessions and cross-site requests, input validation, upload content checks, CSV formula escaping, and account deletion removing every row and file.
+- `test/api.test.ts`: cross-user isolation for every endpoint (including email notifications), the database-level ownership constraint, 401/403 for missing sessions and cross-site requests, input validation, upload content checks, CSV formula escaping, and account deletion removing every row and file.
 - `test/autofill.test.ts`: JSON-LD parsing (entity-encoded HTML, `@graph`, salary ranges, remote jobs), OpenGraph fallback, Greenhouse API mapping, the blocked-address list, URL rules, and refusal of hostnames that resolve to private addresses.
+- `test/gmail.test.ts`: email → company matching (company domains, recruiting-system mail, free-mail and near-miss domains that must not match) and token encryption round-trip and tamper detection.
 - `test/uploads.test.ts`: magic-byte detection, EXIF removal, rejection of disguised and corrupt files, the size limit, and filename cleanup.
 
 CI (GitHub Actions) runs the typecheck, all tests against a PostgreSQL service container, the frontend build, and the production Docker build.

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, KIND, OUTCOME, STATUS, WORK_TYPE, WORKLOAD, today, type Application, type Status } from './api.ts';
+import { api, niceDate, KIND, OUTCOME, STATUS, WORK_TYPE, WORKLOAD, today, type Application, type Status } from './api.ts';
 
 type SortKey = 'company' | 'position' | 'work_type' | 'location' | 'pay' | 'workload' | 'status' | 'applied_on' | 'follow_up_on';
 const STATUSES = Object.keys(STATUS) as Status[];
@@ -96,14 +96,17 @@ export function Overview() {
   if (!apps.length)
     return (
       <main className="narrow">
-        <h1>No applications yet</h1>
-        <p>Add your first one. If you have the job link, paste it and the details fill in for you.</p>
-        <a className="button primary" href="#/new">+ New application</a>
+        <section className="panel empty">
+          <h2>No applications yet</h2>
+          <p className="muted">Add your first application. Paste the job link and the details fill in automatically.</p>
+          <div className="actions"><a className="button primary" href="#/new">New application</a></div>
+        </section>
       </main>
     );
 
   return (
     <main>
+      <div className="page-head"><h1>Applications</h1></div>
       <section className="stats">
         {stats.map(([label, value]) => (
           <div key={label} className="stat">
@@ -117,7 +120,8 @@ export function Overview() {
             <ul>
               {upcoming.map((u, i) => (
                 <li key={i} className={u.date < now ? 'overdue' : ''}>
-                  <span className="date">{u.date === now ? 'Today' : u.date}</span> {u.what}: <a href={`#/app/${u.a.id}`}>{u.a.company}</a>
+                  <span className="date">{u.date === now ? 'Today' : niceDate(u.date)}</span>
+                  <span>{u.what} · <a href={`#/app/${u.a.id}`}>{u.a.company}</a></span>
                 </li>
               ))}
             </ul>
@@ -166,7 +170,10 @@ export function Overview() {
             <tbody>
               {shown.map((a) => (
                 <tr key={a.id} className={`row-${a.status}`} onClick={() => (location.hash = `#/app/${a.id}`)}>
-                  <td><a href={`#/app/${a.id}`} onClick={(e) => e.stopPropagation()}>{a.company}</a></td>
+                  <td className="company">
+                    <a href={`#/app/${a.id}`} onClick={(e) => e.stopPropagation()}>{a.company}</a>
+                    {a.unread_mail ? <> <span className="pill badge-mail" title="New email from this company">New reply</span></> : null}
+                  </td>
                   <td>{a.position}</td>
                   <td>{a.work_type && <span className={`pill wt-${a.work_type}`}>{WORK_TYPE[a.work_type]}</span>}</td>
                   <td>{a.location}</td>
@@ -174,13 +181,13 @@ export function Overview() {
                   <td>{a.workload && WORKLOAD[a.workload]}</td>
                   <td><span className={`pill st-${a.status}`}>{STATUS[a.status]}</span></td>
                   <td>{a.last_outcome && <span className={`pill oc-${a.last_outcome}`}>{OUTCOME[a.last_outcome]}</span>}{a.event_count ? <span className="muted small"> ({a.event_count})</span> : null}</td>
-                  <td className="nowrap">{a.applied_on}</td>
-                  <td className={`nowrap ${a.follow_up_on && a.follow_up_on < now && OPEN.includes(a.status) ? 'overdue' : ''}`}>{a.follow_up_on}</td>
+                  <td className="nowrap num">{niceDate(a.applied_on)}</td>
+                  <td className={`nowrap num ${a.follow_up_on && a.follow_up_on < now && OPEN.includes(a.status) ? 'overdue' : ''}`}>{niceDate(a.follow_up_on)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {!shown.length && <p className="muted">No applications match these filters.</p>}
+          {!shown.length && <p className="empty-row">No applications match these filters.</p>}
         </div>
       ) : (
         <div className="board">
@@ -198,7 +205,8 @@ export function Overview() {
               <h2><span className={`pill st-${s}`}>{STATUS[s]}</span> <span className="muted">{shown.filter((a) => a.status === s).length}</span></h2>
               {shown.filter((a) => a.status === s).map((a) => (
                 <article key={a.id} className="card" draggable onDragStart={() => setDragging(a.id)} onDragEnd={() => setDragging(null)}>
-                  <a href={`#/app/${a.id}`}><strong>{a.company}</strong></a>
+                  <a href={`#/app/${a.id}`}>{a.company}</a>
+                  {a.unread_mail ? <span className="pill badge-mail">New reply</span> : null}
                   <div>{a.position}</div>
                   <div className="muted small">{[a.work_type && WORK_TYPE[a.work_type], a.location, a.pay].filter(Boolean).join(' · ')}</div>
                   {a.last_outcome && <span className={`pill oc-${a.last_outcome}`}>{OUTCOME[a.last_outcome]}</span>}
